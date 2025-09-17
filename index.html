@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bill of Supply (Frontend Only)</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; }
+    .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: #fff; padding: 10mm; box-shadow: 0 0 0.5mm rgba(0,0,0,.3); }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; font-size: 12px; }
+    .noborder td, .noborder th { border: none; }
+    .center { text-align: center; } .right { text-align: right; } .bold { font-weight: 700; }
+    .field { width: 100%; border: none; outline: none; font: inherit; background: transparent; }
+    .field.inline { display: inline-block; min-width: 80px; border-bottom: 1px dashed #aaa; }
+    .field.right { text-align: right; }
+    .controls { margin: 6px 0; text-align: right; }
+    .controls button, .print-btn { padding: 4px 10px; cursor: pointer; border: 1px solid #000; background: #fafafa; font-size: 12px; }
+    .print-btn { margin-top: 8px; }
+    .totals-label { padding-left: 60%; font-weight: bold; }
+    .autocomplete-suggestions { position: absolute; background: #fff; border: 1px solid #ccc; max-height: 140px; overflow-y: auto; font-size: 12px; z-index: 1000; display: none; }
+    .autocomplete-suggestions div { padding: 4px; cursor: pointer; }
+    .autocomplete-suggestions div.active, .autocomplete-suggestions div:hover { background: #eee; }
+    .autocomplete-wrapper { position: relative; display: inline-block; width: 100%; }
+    @media print { .no-print { display: none; } .sheet { margin: 0; box-shadow: none; } .field { border: none; } }
+  </style>
+</head>
+<body>
+<div class="sheet" id="sheet">
+  <!-- HEADER -->
+  <div class="center bold" style="margin-bottom:4px;">Bill of Supply (ORIGINAL FOR RECIPIENT)</div>
+
+  <table>
+    <tr>
+      <!-- Left: Company and Buyer -->
+      <td style="width:50%">
+        <div class="bold">ABC (CHENNAI)</div>
+        <div>NO:25, 3B 3RD FLOOR, TNAGAR, CHENNAI600017, TAMILNADU, INDIA</div>
+        <div>GST: <b>12234567899</b></div>
+        <hr>
+        <div class="bold">Buyer (Bill to)</div>
+        <div class="autocomplete-wrapper">
+          <input class="field bold" id="buyerName" placeholder="DMART" />
+          <div class="autocomplete-suggestions" id="suggest_buyerName"></div>
+        </div>
+        <div class="autocomplete-wrapper">
+          <textarea class="field" rows="2" id="buyerAddress" placeholder="#390, T.H. Road, Thiruvottiyur, Chennai - 600019"></textarea>
+          <div class="autocomplete-suggestions" id="suggest_buyerAddress"></div>
+        </div>
+        <div>GST: <div class="autocomplete-wrapper"><input class="field inline" id="buyerGST" /><div class="autocomplete-suggestions" id="suggest_buyerGST"></div></div></div>
+        <div>Email: <input class="field inline" id="buyerEmail" /></div>
+        <div>FSSAI No.: <input class="field inline" id="buyerFSSAI" /></div>
+      </td>
+
+      <!-- Right: Invoice Metadata -->
+      <td style="width:50%">
+        <table style="width:100%; border:none;">
+          <tr><td>Invoice No.</td>
+            <td colspan="3">
+              <div class="autocomplete-wrapper">
+                <input class="field bold" id="invoiceNo" />
+                <div class="autocomplete-suggestions" id="suggest_invoiceNo"></div>
+              </div>
+            </td>
+          </tr>
+          <tr><td>Dated</td><td colspan="3"><input class="field inline" id="date" placeholder="29-Aug-25" /></td></tr>
+          <tr><td>Delivery Note</td><td><input class="field inline" id="deliveryNote" /></td><td>Mode/Terms of Payment</td><td><input class="field inline" id="termsPayment" /></td></tr>
+          <tr><td>Reference No. & Date</td><td colspan="3"><input class="field inline" id="refNoDate" /></td></tr>
+          <tr><td>Other References</td><td colspan="3"><input class="field inline" id="otherRef" /></td></tr>
+          <tr><td>Buyer’s Order No.</td><td><input class="field inline" id="buyerOrderNo" /></td><td>Dated</td><td><input class="field inline" id="buyerOrderDate" /></td></tr>
+          <tr><td>Dispatch Doc No</td><td><input class="field inline" id="dispatchDocNo" /></td><td>Delivery Note Date</td><td><input class="field inline" id="deliveryNoteDate" /></td></tr>
+          <tr><td>Dispatched through</td><td><div class="autocomplete-wrapper"><input class="field inline" id="dispatchedThrough" /><div class="autocomplete-suggestions" id="suggest_dispatchedThrough"></div></div></td><td>Destination</td><td><div class="autocomplete-wrapper"><input class="field inline" id="destination" /><div class="autocomplete-suggestions" id="suggest_destination"></div></div></td></tr>
+          <tr><td>Bill of Lading / LR-RR No.</td><td><input class="field inline" id="lrrr" /></td><td>Motor Vehicle No.</td><td><div class="autocomplete-wrapper"><input class="field inline" id="vehicle" placeholder="TN 18 S 2224" /><div class="autocomplete-suggestions" id="suggest_vehicle"></div></div></td></tr>
+          <tr><td colspan="4">Terms of Delivery <input class="field inline" id="terms" placeholder="DELIVERY AT ..." /></td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ITEMS -->
+  <table id="itemsTable">
+    <thead>
+      <tr>
+        <th>Sl No</th>
+        <th>Description of Goods</th>
+        <th>HSN/SAC</th>
+        <th>No of Bags</th>
+        <th>Quantity (Kg)</th>
+        <th>Rate (Per Bag)</th>
+        <th>Discount</th>
+        <th>GST%</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="controls no-print">
+    <button onclick="addRow()">+ Add Row</button>
+    <button onclick="removeRow()">− Remove Last Row</button>
+  </div>
+
+    <!-- TOTALS -->
+  <table>
+    <tr>
+      <td style="width:50%">ACK Date <input class="field inline" id="ackDate" /></td>
+      <td class="right"></td>
+    </tr>
+    <tr>
+      <td class="totals-label">Total</td>
+      <td class="right"><input class="field right inline" id="total" /></td>
+    </tr>
+    <tr>
+      <td class="totals-label">Super Discount</td>
+      <td class="right">
+        <input class="field right inline" id="superDiscount" /> %
+      </td>
+    </tr>
+    <tr>
+      <td class="totals-label">Grand Total</td>
+      <td class="right"><input class="field right inline" id="grandTotal" /></td>
+    </tr>
+    <tr>
+      <td colspan="2" class="bold">
+        Amount Chargeable (in words): <input class="field inline" id="amountWords" />
+      </td>
+    </tr>
+  </table>
+
+
+  <!-- HSN Summary -->
+  <table>
+    <thead><tr><th>HSN/SAC</th><th>Taxable Value</th></tr></thead>
+    <tbody>
+      <tr><td><input class="field" id="hsnSummary" placeholder="07139010"/></td><td><input class="field right" id="hsnValue" placeholder="9,87,945.00"/></td></tr>
+      <tr><td class="right bold">Total</td><td><input class="field right" id="hsnTotal" placeholder="9,87,945.00"/></td></tr>
+    </tbody>
+  </table>
+  <div>Tax Amount (in words): <b id="taxAmountWords">NIL</b></div>
+
+
+  <!-- Bank + Declaration + Receiver -->
+  <table>
+    <tr>
+      <td style="width:50%; vertical-align:top;">
+        <div class="bold">Remarks:</div>
+        <input class="field" id="remarks" />
+        <div class="bold">Declaration</div>
+        <textarea class="field" rows="2" id="declaration">We declare that this invoice shows the actual price of the goods described and that all particulars are true</textarea>
+      </td>
+      <td style="width:50%; vertical-align:top;">
+        <div class="bold">Company’s Bank Details</div>
+        <div>A/c Holder’s Name : <b>ABC</b></div>
+        <div>Bank Name A/c No. : <b>STATE BANK OF INDIA - 4340733</b></div>
+        <div>Branch & IFS Code : <b>SBIN0001234, BESANT NAGAR</b></div>
+        <br>
+        <div>Receiver name:</div>
+        <div class="field" style="height:8mm"></div>
+        <div>Receiver Signature:</div>
+        <div class="field" style="height:8mm"></div>
+        <div>Receiver seal:</div>
+        <div class="field" style="height:8mm"></div>
+        <div>Kindly acknowledge the goods are in good condition</div>
+        <div style="text-align:right; margin-top:10px;">FOR <b>ABC (CHENNAI)</b></div>
+        <div style="text-align:right;">Authorised Signatory</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Print Button -->
+  <div class="no-print" style="text-align:center; margin-top:10px;">
+    <button class="print-btn" onclick="saveAndPrint()">🖨️ Print Invoice</button>
+  </div>
+</div>
+
+<script>
+  // ========= Helpers =========
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const itemsBody = $('#itemsTable tbody');
+
+  function parseNum(v){ return parseFloat((v||'').toString().replace(/,/g,''))||0; }
+  function formatNum(n){ return (Number.isFinite(n)?n:0).toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+  // ========= Initial Invoice No =========
+  let currentInvoiceNo = localStorage.getItem('lastInvoiceNo') || '1B1001';
+  $('#invoiceNo').value = currentInvoiceNo;
+
+  // ========= Items table =========
+  function addRow(data={}) {
+    const i = itemsBody.children.length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class='center'>${i+1}</td>
+      <td><input class='field' data-k='desc' value='${data.desc||''}'></td>
+      <td><input class='field center' data-k='hsn' value='${data.hsn||''}'></td>
+      <td><input class='field center' data-k='bags' value='${data.bags||''}'></td>
+      <td><input class='field center' data-k='qty' value='${data.qty||''}'></td>
+      <td><input class='field center' data-k='rate' value='${data.rate||''}'></td>
+      <td><input class='field center' data-k='discount' value='${data.discount||''}'></td>
+      <td><input class='field center' data-k='gst' value='${data.gst||''}'></td>
+      <td><input class='field right' data-k='amount' value='${data.amount||''}' readonly></td>`;
+    itemsBody.appendChild(tr);
+    tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', recalc));
+    recalc();
+  }
+  function removeRow(){ if(itemsBody.children.length){ itemsBody.removeChild(itemsBody.lastChild); reindex(); recalc(); }}
+  function reindex(){ $$('#itemsTable tbody tr').forEach((tr,i)=> tr.firstElementChild.textContent=i+1); }
+
+ function recalc(){
+  let total=0;
+  $$('#itemsTable tbody tr').forEach(tr=>{
+    const g=k=>tr.querySelector(`[data-k=${k}]`).value;
+    let qty=parseNum(g('qty')), rate=parseNum(g('rate')),
+        disc=parseNum(g('discount')), gst=parseNum(g('gst'));
+    let amt = qty*rate - disc; // discount before GST
+    amt += amt*gst/100;
+    tr.querySelector('[data-k=amount]').value = formatNum(amt);
+    total += amt;
+  });
+  $('#total').value = formatNum(total);
+
+  // Super Discount as percentage
+  const sdPercent = parseNum($('#superDiscount').value);
+  const sdAmount = total * (sdPercent / 100);
+  const grand = total - sdAmount;
+
+  $('#grandTotal').value = formatNum(grand);
+
+  // Words
+  const words = numberToWords(grand);
+  $('#amountWords').value = words;
+
+  // ✅ Sync HSN values with Grand Total
+  $('#hsnValue').value = formatNum(grand);
+  $('#hsnTotal').value = formatNum(grand);
+
+  // ✅ Sync Tax Amount (in words) with Amount Chargeable (in words)
+  $('#taxAmountWords').textContent = words;
+}
+
+  function numberToWords(num){
+    num = Math.floor(num||0);
+    if(num===0) return 'INR Zero Only';
+    const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function inWords(n){
+      if(n<20) return a[n];
+      if(n<100) return (b[Math.floor(n/10)] + (n%10?' '+a[n%10]:''));
+      if(n<1000) return (a[Math.floor(n/100)]+' Hundred'+(n%100?' '+inWords(n%100):''));
+      if(n<100000) return (inWords(Math.floor(n/1000))+' Thousand'+(n%1000?' '+inWords(n%1000):''));
+      if(n<10000000) return (inWords(Math.floor(n/100000))+' Lakh'+(n%100000?' '+inWords(n%100000):''));
+      return (inWords(Math.floor(n/10000000))+' Crore'+(n%10000000?' '+inWords(n%10000000):''));
+    }
+    return 'INR '+inWords(num)+' Only';
+  }
+
+  // ========= Form data IO =========
+  function getFormData(){
+    const data={};
+    $$('.field').forEach(f=>{ if(f.id) data[f.id]=f.value; });
+    data.items = $$('#itemsTable tbody tr').map(tr=>{
+      const obj={};
+      tr.querySelectorAll('input').forEach(inp=>{ obj[inp.dataset.k]=inp.value; });
+      return obj;
+    });
+    return data;
+  }
+  function setFormData(data){
+    $$('.field').forEach(f=>{ if(f.id && data[f.id]!==undefined) f.value=data[f.id]; });
+    // items
+    itemsBody.innerHTML='';
+    if(!data.items || data.items.length===0){ addRow(); } else { data.items.forEach(it=>addRow(it)); }
+    recalc();
+  }
+  function clearForm(){
+    $$('.field').forEach(f=>{ if(f.id!=='invoiceNo') f.value=''; });
+    itemsBody.innerHTML='';
+    addRow();
+  }
+
+  // ========= Invoice number helpers =========
+  function incrementInvoiceNo(no){
+    const prefix = (no.match(/^[^0-9]*/)||[''])[0];
+    const digits = no.replace(/\D/g,'');
+    const n = parseInt(digits||'0',10)+1;
+    return prefix + n.toString().padStart(digits.length||4,'0');
+  }
+
+  // ========= localStorage keys =========
+  const INV_PREFIX = 'invoice_';
+  function saveInvoice(no, data){ localStorage.setItem(INV_PREFIX+no, JSON.stringify(data)); }
+  function loadInvoice(no){ const raw=localStorage.getItem(INV_PREFIX+no); return raw?JSON.parse(raw):null; }
+
+  // ========= Autocomplete (with keyboard nav) =========
+  function addToHistory(field, value){
+    if(!value) return; const key='history_'+field;
+    let arr=JSON.parse(localStorage.getItem(key)||'[]');
+    if(!arr.includes(value)) arr.unshift(value);
+    if(arr.length>200) arr=arr.slice(0,200);
+    localStorage.setItem(key, JSON.stringify(arr));
+  }
+  function getHistory(field){ return JSON.parse(localStorage.getItem('history_'+field)||'[]'); }
+
+  function bindAutocomplete(inputId){
+    const inp = $('#'+inputId);
+    const box = $('#suggest_'+inputId);
+    let idx = -1; // active index for keyboard
+
+    function close(){ box.style.display='none'; idx=-1; $$('.active', box).forEach(n=>n.classList.remove('active')); }
+    function open(){ box.style.display = box.children.length? 'block':'none'; }
+    function build(){
+      const q = inp.value.trim().toLowerCase();
+      const list = getHistory(inputId).filter(v=>!q || v.toLowerCase().includes(q));
+      box.innerHTML = list.map(v=>`<div>${v.replace(/</g,'&lt;')}</div>`).join('');
+      idx=-1; open();
+      $$('#suggest_'+inputId+' div').forEach((div,i)=>{
+        div.addEventListener('mousedown', e=>{ e.preventDefault(); select(i); });
+      });
+    }
+    function select(i){
+      const el = box.children[i]; if(!el) return; inp.value = el.textContent; close(); inp.dispatchEvent(new Event('input')); inp.blur(); inp.focus();
+    }
+
+    inp.addEventListener('input', ()=>{
+      // special case: invoiceNo exact match autoload
+      if(inputId==='invoiceNo'){
+        const ex = loadInvoice(inp.value.trim());
+        if(ex) setFormData(ex);
+      }
+      build();
+    });
+    inp.addEventListener('keydown', e=>{
+      if(box.style.display!=='block') return;
+      const max = box.children.length-1;
+      if(e.key==='ArrowDown'){ e.preventDefault(); idx = Math.min(max, idx+1); highlight(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); idx = Math.max(0, idx-1); highlight(); }
+      else if(e.key==='Enter'){ if(idx>-1){ e.preventDefault(); select(idx);} }
+      else if(e.key==='Escape'){ close(); }
+    });
+    function highlight(){ $$('#suggest_'+inputId+' div').forEach((d,i)=> d.classList.toggle('active', i===idx)); }
+    inp.addEventListener('blur', ()=> setTimeout(close, 120));
+  }
+
+  // Bind all autocompletes
+  ['invoiceNo','buyerName','buyerAddress','buyerGST','dispatchedThrough','destination','vehicle',]
+    .forEach(bindAutocomplete);
+
+  // ========= Save & Print =========
+  function saveAndPrint(){
+    const no = $('#invoiceNo').value.trim();
+    if(!no){ alert('Invoice number is required'); return; }
+
+    const data = getFormData();
+    // save main histories
+    ['invoiceNo','buyerName','buyerAddress','buyerGST','dispatchedThrough','destination','vehicle']
+      .forEach(f=> addToHistory(f, data[f]||''));
+
+    saveInvoice(no, data);
+
+    window.print();
+
+    // increment invoice number and reset
+    const next = incrementInvoiceNo(no);
+    localStorage.setItem('lastInvoiceNo', next);
+    $('#invoiceNo').value = next;
+    clearForm();
+  }
+
+  // ========= Auto-load last invoice on revisit =========
+  // Start with a clean row visible
+  addRow();
+
+  // If user types an existing invoice number, load instantly (handled in autocomplete input listener)
+
+  // Recalculate when totals inputs change manually
+  ['superDiscount'].forEach(id=> $('#'+id).addEventListener('input', recalc));
+</script>
+</body>
+</html>
